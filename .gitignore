@@ -1,2 +1,2 @@
-config.mk
-build
+_build
+.sconsign.dblite
