@@ -37,7 +37,6 @@ static DoubleOption  opt_var_decay         (_cat, "var-decay",   "The variable a
 static DoubleOption  opt_clause_decay      (_cat, "cla-decay",   "The clause activity decay factor",              0.999,    DoubleRange(0, false, 1, false));
 static DoubleOption  opt_random_var_freq   (_cat, "rnd-freq",    "The frequency with which the decision heuristic tries to choose a random variable", 0, DoubleRange(0, true, 1, true));
 static DoubleOption  opt_random_seed       (_cat, "rnd-seed",    "Used by the random variable selection",         91648253, DoubleRange(0, false, HUGE_VAL, false));
-static IntOption     opt_ccmin_mode        (_cat, "ccmin-mode",  "Controls conflict clause minimization (0=none, 1=basic, 2=deep)", 2, IntRange(0, 2));
 static IntOption     opt_phase_saving      (_cat, "phase-saving", "Controls the level of phase saving (0=none, 1=limited, 2=full)", 2, IntRange(0, 2));
 static BoolOption    opt_rnd_init_act      (_cat, "rnd-init",    "Randomize the initial activity", false);
 static BoolOption    opt_luby_restart      (_cat, "luby",        "Use the Luby restart sequence", true);
@@ -61,7 +60,6 @@ Solver::Solver() :
   , random_var_freq  (opt_random_var_freq)
   , random_seed      (opt_random_seed)
   , luby_restart     (opt_luby_restart)
-  , ccmin_mode       (opt_ccmin_mode)
   , phase_saving     (opt_phase_saving)
   , rnd_pol          (false)
   , rnd_init_act     (opt_rnd_init_act)
@@ -337,27 +335,12 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     //
     int i, j;
     out_learnt.copyTo(analyze_toclear);
-    if (ccmin_mode == 2){
-        for (i = j = 1; i < out_learnt.size(); i++)
-            if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
-                out_learnt[j++] = out_learnt[i];
-        
-    }else if (ccmin_mode == 1){
-        for (i = j = 1; i < out_learnt.size(); i++){
-            Var x = var(out_learnt[i]);
 
-            if (reason(x) == CRef_Undef)
-                out_learnt[j++] = out_learnt[i];
-            else{
-                Clause& c = ca[reason(var(out_learnt[i]))];
-                for (int k = 1; k < c.size(); k++)
-                    if (!seen[var(c[k])] && level(var(c[k])) > 0){
-                        out_learnt[j++] = out_learnt[i];
-                        break; }
-            }
-        }
-    }else
-        i = j = out_learnt.size();
+    // Deep conflict clause minimization
+    //
+    for (i = j = 1; i < out_learnt.size(); i++)
+        if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
+            out_learnt[j++] = out_learnt[i];
 
     max_literals += out_learnt.size();
     out_learnt.shrink(i - j);
