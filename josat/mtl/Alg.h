@@ -18,12 +18,12 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Alg_h
-#define Minisat_Alg_h
+#ifndef Josat_Alg_h
+#define Josat_Alg_h
 
-#include "minisat/mtl/Vec.h"
+#include "josat/mtl/Vec.h"
 
-namespace Minisat {
+namespace Josat {
 
 //=================================================================================================
 // Useful functions on vector-like types:

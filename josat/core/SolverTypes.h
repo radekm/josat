@@ -19,19 +19,19 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 
-#ifndef Minisat_SolverTypes_h
-#define Minisat_SolverTypes_h
+#ifndef Josat_SolverTypes_h
+#define Josat_SolverTypes_h
 
 #include <assert.h>
 
-#include "minisat/mtl/IntTypes.h"
-#include "minisat/mtl/Alg.h"
-#include "minisat/mtl/Vec.h"
-#include "minisat/mtl/IntMap.h"
-#include "minisat/mtl/Map.h"
-#include "minisat/mtl/Alloc.h"
+#include "josat/mtl/IntTypes.h"
+#include "josat/mtl/Alg.h"
+#include "josat/mtl/Vec.h"
+#include "josat/mtl/IntMap.h"
+#include "josat/mtl/Map.h"
+#include "josat/mtl/Alloc.h"
 
-namespace Minisat {
+namespace Josat {
 
 //=================================================================================================
 // Variables, literals, lifted booleans, clauses:
@@ -41,7 +41,7 @@ namespace Minisat {
 // so that they can be used as array indices.
 
 typedef int Var;
-#if defined(MINISAT_CONSTANTS_AS_MACROS)
+#if defined(JOSAT_CONSTANTS_AS_MACROS)
 #define var_Undef (-1)
 #else
   const Var var_Undef = -1;
@@ -120,7 +120,7 @@ public:
 inline int   toInt  (lbool l) { return l.value; }
 inline lbool toLbool(int   v) { return lbool((uint8_t)v);  }
 
-#if defined(MINISAT_CONSTANTS_AS_MACROS)
+#if defined(JOSAT_CONSTANTS_AS_MACROS)
   #define l_True  (lbool((uint8_t)0)) // gcc does not do constant propagation if these are real constants.
   #define l_False (lbool((uint8_t)1))
   #define l_Undef (lbool((uint8_t)2))

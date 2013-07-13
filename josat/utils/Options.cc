@@ -17,13 +17,13 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#include "minisat/mtl/Sort.h"
-#include "minisat/utils/Options.h"
-#include "minisat/utils/ParseUtils.h"
+#include "josat/mtl/Sort.h"
+#include "josat/utils/Options.h"
+#include "josat/utils/ParseUtils.h"
 
-using namespace Minisat;
+using namespace Josat;
 
-void Minisat::parseOptions(int& argc, char** argv, bool strict)
+void Josat::parseOptions(int& argc, char** argv, bool strict)
 {
     int i, j;
     for (i = j = 1; i < argc; i++){
@@ -55,9 +55,9 @@ void Minisat::parseOptions(int& argc, char** argv, bool strict)
 }
 
 
-void Minisat::setUsageHelp      (const char* str){ Option::getUsageString() = str; }
-void Minisat::setHelpPrefixStr  (const char* str){ Option::getHelpPrefixString() = str; }
-void Minisat::printUsageAndExit (int /*argc*/, char** argv, bool verbose)
+void Josat::setUsageHelp      (const char* str){ Option::getUsageString() = str; }
+void Josat::setHelpPrefixStr  (const char* str){ Option::getHelpPrefixString() = str; }
+void Josat::printUsageAndExit (int /*argc*/, char** argv, bool verbose)
 {
     const char* usage = Option::getUsageString();
     if (usage != NULL)

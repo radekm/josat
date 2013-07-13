@@ -18,18 +18,18 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_System_h
-#define Minisat_System_h
+#ifndef Josat_System_h
+#define Josat_System_h
 
 #if defined(__linux__)
 #include <fpu_control.h>
 #endif
 
-#include "minisat/mtl/IntTypes.h"
+#include "josat/mtl/IntTypes.h"
 
 //-------------------------------------------------------------------------------------------------
 
-namespace Minisat {
+namespace Josat {
 
 static inline double cpuTime(void); // CPU-time in seconds.
 
@@ -55,14 +55,14 @@ extern void   sigTerm(void handler(int));      // Set up handling of available t
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #include <time.h>
 
-static inline double Minisat::cpuTime(void) { return (double)clock() / CLOCKS_PER_SEC; }
+static inline double Josat::cpuTime(void) { return (double)clock() / CLOCKS_PER_SEC; }
 
 #else
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 
-static inline double Minisat::cpuTime(void) {
+static inline double Josat::cpuTime(void) {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000; }

@@ -17,13 +17,13 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Map_h
-#define Minisat_Map_h
+#ifndef Josat_Map_h
+#define Josat_Map_h
 
-#include "minisat/mtl/IntTypes.h"
-#include "minisat/mtl/Vec.h"
+#include "josat/mtl/IntTypes.h"
+#include "josat/mtl/Vec.h"
 
-namespace Minisat {
+namespace Josat {
 
 //=================================================================================================
 // Default hash/equals functions

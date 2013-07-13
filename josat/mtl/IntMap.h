@@ -16,12 +16,12 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_IntMap_h
-#define Minisat_IntMap_h
+#ifndef Josat_IntMap_h
+#define Josat_IntMap_h
 
-#include "minisat/mtl/Vec.h"
+#include "josat/mtl/Vec.h"
 
-namespace Minisat {
+namespace Josat {
 
     template<class T> struct MkIndexDefault {
         typename vec<T>::Size operator()(T t) const { return (typename vec<T>::Size)t; }
@@ -102,5 +102,5 @@ namespace Minisat {
     #endif
 
 //=================================================================================================
-} // namespace Minisat
+} // namespace Josat
 #endif

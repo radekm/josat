@@ -18,18 +18,18 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Solver_h
-#define Minisat_Solver_h
+#ifndef Josat_Solver_h
+#define Josat_Solver_h
 
-#include "minisat/mtl/Vec.h"
-#include "minisat/mtl/Heap.h"
-#include "minisat/mtl/Alg.h"
-#include "minisat/mtl/IntMap.h"
-#include "minisat/utils/Options.h"
-#include "minisat/core/SolverTypes.h"
+#include "josat/mtl/Vec.h"
+#include "josat/mtl/Heap.h"
+#include "josat/mtl/Alg.h"
+#include "josat/mtl/IntMap.h"
+#include "josat/utils/Options.h"
+#include "josat/core/SolverTypes.h"
 
 
-namespace Minisat {
+namespace Josat {
 
 //=================================================================================================
 // Solver -- the main class:
@@ -207,7 +207,7 @@ protected:
     bool                ok;               // If FALSE, the constraints are already unsatisfiable. No part of the solver state may be used!
     double              cla_inc;          // Amount to bump next clause with.
     double              var_inc;          // Amount to bump next variable with.
-    int                 qhead;            // Head of queue (as index into the trail -- no more explicit propagation queue in MiniSat).
+    int                 qhead;            // Head of queue (as index into the trail -- no more explicit propagation queue in Josat).
     int                 simpDB_assigns;   // Number of top-level assignments since last execution of 'simplify()'.
     int64_t             simpDB_props;     // Remaining number of propagations that must be made before next execution of 'simplify()'.
     double              progress_estimate;// Set by 'search()'.

@@ -21,13 +21,13 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <errno.h>
 #include <zlib.h>
 
-#include "minisat/utils/System.h"
-#include "minisat/utils/ParseUtils.h"
-#include "minisat/utils/Options.h"
-#include "minisat/core/Dimacs.h"
-#include "minisat/core/Solver.h"
+#include "josat/utils/System.h"
+#include "josat/utils/ParseUtils.h"
+#include "josat/utils/Options.h"
+#include "josat/core/Dimacs.h"
+#include "josat/core/Solver.h"
 
-using namespace Minisat;
+using namespace Josat;
 
 //=================================================================================================
 

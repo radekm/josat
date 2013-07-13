@@ -18,13 +18,13 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Heap_h
-#define Minisat_Heap_h
+#ifndef Josat_Heap_h
+#define Josat_Heap_h
 
-#include "minisat/mtl/Vec.h"
-#include "minisat/mtl/IntMap.h"
+#include "josat/mtl/Vec.h"
+#include "josat/mtl/IntMap.h"
 
-namespace Minisat {
+namespace Josat {
 
 //=================================================================================================
 // A heap implementation with support for decrease/increase key.

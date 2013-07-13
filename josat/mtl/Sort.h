@@ -18,16 +18,16 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#ifndef Minisat_Sort_h
-#define Minisat_Sort_h
+#ifndef Josat_Sort_h
+#define Josat_Sort_h
 
-#include "minisat/mtl/Vec.h"
+#include "josat/mtl/Vec.h"
 
 //=================================================================================================
 // Some sorting algorithms for vec's
 
 
-namespace Minisat {
+namespace Josat {
 
 template<class T>
 struct LessThan_default {
