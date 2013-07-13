@@ -116,12 +116,7 @@ Solver::~Solver()
 //
 Var Solver::newVar(lbool upol, bool dvar)
 {
-    Var v;
-    if (free_vars.size() > 0){
-        v = free_vars.last();
-        free_vars.pop();
-    }else
-        v = next_var++;
+    Var v = next_var++;
 
     watches  .init(mkLit(v, false));
     watches  .init(mkLit(v, true ));
@@ -136,18 +131,6 @@ Var Solver::newVar(lbool upol, bool dvar)
     setDecisionVar(v, dvar);
     return v;
 }
-
-
-// Note: at the moment, only unassigned variable will be released (this is to avoid duplicate
-// releases of the same variable).
-void Solver::releaseVar(Lit l)
-{
-    if (value(l) == l_Undef){
-        addClause(l);
-        released_vars.push(var(l));
-    }
-}
-
 
 bool Solver::addClause_(vec<Lit>& ps)
 {
@@ -637,27 +620,6 @@ bool Solver::simplify()
         removeSatisfied(clauses);
 
         // TODO: what todo in if 'remove_satisfied' is false?
-
-        // Remove all released variables from the trail:
-        for (int i = 0; i < released_vars.size(); i++){
-            assert(seen[released_vars[i]] == 0);
-            seen[released_vars[i]] = 1;
-        }
-
-        int i, j;
-        for (i = j = 0; i < trail.size(); i++)
-            if (seen[var(trail[i])] == 0)
-                trail[j++] = trail[i];
-        trail.shrink(i - j);
-        //printf("trail.size()= %d, qhead = %d\n", trail.size(), qhead);
-        qhead = trail.size();
-
-        for (int i = 0; i < released_vars.size(); i++)
-            seen[released_vars[i]] = 0;
-
-        // Released variables are now ready to be reused:
-        append(released_vars, free_vars);
-        released_vars.clear();
     }
     checkGarbage();
     rebuildOrderHeap();

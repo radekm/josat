@@ -45,7 +45,6 @@ public:
     // Problem specification:
     //
     Var     newVar    (lbool upol = l_Undef, bool dvar = true); // Add a new variable with parameters specifying variable mode.
-    void    releaseVar(Lit l);                                  // Make literal true and promise to never refer to variable again.
 
     bool    addClause (const vec<Lit>& ps);                     // Add a clause to the solver. 
     bool    addEmptyClause();                                   // Add the empty clause, making the solver contradictory.
@@ -213,9 +212,6 @@ protected:
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
     Var                 next_var;         // Next variable to be created.
     ClauseAllocator     ca;
-
-    vec<Var>            released_vars;
-    vec<Var>            free_vars;
 
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
     // used, exept 'seen' wich is used in several places.
