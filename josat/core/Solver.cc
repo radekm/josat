@@ -90,7 +90,6 @@ Solver::Solver() :
   , qhead              (0)
   , simpDB_assigns     (-1)
   , simpDB_props       (0)
-  , progress_estimate  (0)
   , remove_satisfied   (true)
   , next_var           (0)
 
@@ -682,17 +681,16 @@ lbool Solver::search(int nof_conflicts)
                 max_learnts             *= learntsize_inc;
 
                 if (verbosity >= 1)
-                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n", 
+                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f |\n", 
                            (int)conflicts, 
-                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals, 
-                           (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts(), progressEstimate()*100);
+                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals,
+                           (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts());
             }
 
         }else{
             // NO CONFLICT
             if ((nof_conflicts >= 0 && conflictC >= nof_conflicts) || !withinBudget()){
                 // Reached bound on number of conflicts:
-                progress_estimate = progressEstimate();
                 cancelUntil(0);
                 return l_Undef; }
 
@@ -735,21 +733,6 @@ lbool Solver::search(int nof_conflicts)
             uncheckedEnqueue(next);
         }
     }
-}
-
-
-double Solver::progressEstimate() const
-{
-    double  progress = 0;
-    double  F = 1.0 / nVars();
-
-    for (int i = 0; i <= decisionLevel(); i++){
-        int beg = i == 0 ? 0 : trail_lim[i - 1];
-        int end = i == decisionLevel() ? trail.size() : trail_lim[i];
-        progress += pow(F, i) * (end - beg);
-    }
-
-    return progress / nVars();
 }
 
 /*
@@ -798,10 +781,10 @@ lbool Solver::solve_()
     lbool   status            = l_Undef;
 
     if (verbosity >= 1){
-        printf("============================[ Search Statistics ]==============================\n");
-        printf("| Conflicts |          ORIGINAL         |          LEARNT          | Progress |\n");
-        printf("|           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |          |\n");
-        printf("===============================================================================\n");
+        printf("============================[ Search Statistics ]===================\n");
+        printf("| Conflicts |          ORIGINAL         |          LEARNT          |\n");
+        printf("|           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |\n");
+        printf("====================================================================\n");
     }
 
     // Search:
