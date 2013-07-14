@@ -150,23 +150,28 @@ class Clause {
     friend class ClauseAllocator;
 
     // NOTE: This constructor cannot be used directly (doesn't allocate enough memory).
-    Clause(const vec<Lit>& ps, bool use_extra, bool learnt) {
+    Clause(
+        const vec<Lit>& ps,
+        bool use_extra,
+        bool learnt,
+        bool single_value_constraint = false) {
+
         header.mark      = 0;
-        header.single_value_constraint = 0;
+        header.single_value_constraint = single_value_constraint;
         header.learnt    = learnt;
         header.has_extra = use_extra;
         header.reloced   = 0;
         header.size      = ps.size();
 
-        for (int i = 0; i < ps.size(); i++) 
+        for (int i = 0; i < ps.size(); i++)
             data[i].lit = ps[i];
 
-        if (header.has_extra){
+        if (header.has_extra) {
             if (header.learnt)
                 data[header.size].act = 0;
             else
                 calcAbstraction();
-    }
+        }
     }
 
     // NOTE: This constructor cannot be used directly (doesn't allocate enough memory).
@@ -202,6 +207,10 @@ public:
     uint32_t     mark        ()      const   { return header.mark; }
     void         mark        (uint32_t m)    { header.mark = m; }
     const Lit&   last        ()      const   { return data[header.size-1].lit; }
+
+    bool single_value_constraint() const {
+        return header.single_value_constraint;
+    }
 
     bool         reloced     ()      const   { return header.reloced; }
     CRef         relocation  ()      const   { return data[0].rel; }
@@ -244,13 +253,16 @@ class ClauseAllocator
         to.extra_clause_field = extra_clause_field;
         ra.moveTo(to.ra); }
 
-    CRef alloc(const vec<Lit>& ps, bool learnt = false)
-    {
+    CRef alloc(
+        const vec<Lit>& ps,
+        bool learnt = false,
+        bool single_value_constraint = false) {
+
         assert(sizeof(Lit)      == sizeof(uint32_t));
         assert(sizeof(float)    == sizeof(uint32_t));
         bool use_extra = learnt | extra_clause_field;
         CRef cid       = ra.alloc(clauseWord32Size(ps.size(), use_extra));
-        new (lea(cid)) Clause(ps, use_extra, learnt);
+        new (lea(cid)) Clause(ps, use_extra, learnt, single_value_constraint);
 
         return cid;
     }
