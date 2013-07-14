@@ -814,6 +814,10 @@ lbool Solver::solve_()
 
 bool Solver::implies(const vec<Lit>& assumps, vec<Lit>& out)
 {
+    // TODO:
+    // This method should be probably called only at decision level 0 or
+    // why is cancelUntil called with 0?
+
     trail_lim.push(trail.size());
     for (int i = 0; i < assumps.size(); i++){
         Lit a = assumps[i];
