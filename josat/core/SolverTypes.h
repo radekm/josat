@@ -47,12 +47,19 @@ typedef int Var;
   const Var var_Undef = -1;
 #endif
 
+#if defined(JOSAT_CONSTANTS_AS_MACROS)
+  #define lsign_Pos (false)
+  #define lsign_Neg (true)
+#else
+  const bool lsign_Pos = false;
+  const bool lsign_Neg = true;
+#endif
 
 struct Lit {
     int     x;
 
     // Use this as a constructor:
-    friend Lit mkLit(Var var, bool sign = false);
+    friend Lit mkLit(Var var, bool sign = lsign_Pos);
 
     bool operator == (Lit p) const { return x == p.x; }
     bool operator != (Lit p) const { return x != p.x; }
