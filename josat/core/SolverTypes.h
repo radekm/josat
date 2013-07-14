@@ -139,7 +139,8 @@ typedef RegionAllocator<uint32_t>::Ref CRef;
 
 class Clause {
     struct {
-        unsigned mark      : 2;
+        unsigned mark      : 1;
+        unsigned single_value_constraint : 1;
         unsigned learnt    : 1;
         unsigned has_extra : 1;
         unsigned reloced   : 1;
@@ -151,6 +152,7 @@ class Clause {
     // NOTE: This constructor cannot be used directly (doesn't allocate enough memory).
     Clause(const vec<Lit>& ps, bool use_extra, bool learnt) {
         header.mark      = 0;
+        header.single_value_constraint = 0;
         header.learnt    = learnt;
         header.has_extra = use_extra;
         header.reloced   = 0;
