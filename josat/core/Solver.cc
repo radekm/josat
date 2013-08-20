@@ -811,37 +811,6 @@ lbool Solver::solve_()
     return status;
 }
 
-
-bool Solver::implies(const vec<Lit>& assumps, vec<Lit>& out)
-{
-    // TODO:
-    // This method should be probably called only at decision level 0 or
-    // why is cancelUntil called with 0?
-
-    trail_lim.push(trail.size());
-    for (int i = 0; i < assumps.size(); i++){
-        Lit a = assumps[i];
-
-        if (value(a) == l_False){
-            cancelUntil(0);
-            return false;
-        }else if (value(a) == l_Undef)
-            uncheckedEnqueue(a);
-    }
-
-    unsigned trail_before = trail.size();
-    bool     ret          = true;
-    if (propagate() == CRef_Undef){
-        out.clear();
-        for (int j = trail_before; j < trail.size(); j++)
-            out.push(trail[j]);
-    }else
-        ret = false;
-    
-    cancelUntil(0);
-    return ret;
-}
-
 //=================================================================================================
 // Statistics:
 //
