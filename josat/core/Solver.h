@@ -1,6 +1,7 @@
 /****************************************************************************************[Solver.h]
 Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
 Copyright (c) 2007-2010, Niklas Sorensson
+Copyright (c) 2013, Radek Micek
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
@@ -44,7 +45,11 @@ public:
 
     // Problem specification:
     //
-    Var     newVar    (lbool upol = l_Undef, bool dvar = true); // Add a new variable with parameters specifying variable mode.
+
+    // Add a new variable with parameters specifying variable mode.
+    //
+    // A value variable can be used in at most one single value constraint.
+    Var     newVar    (lbool upol = l_Undef, bool dvar = true, bool valueVar = true);
 
     bool    addClause (const vec<Lit>& ps);                     // Add a clause to the solver. 
     bool    addEmptyClause();                                   // Add the empty clause, making the solver contradictory.
@@ -55,9 +60,35 @@ public:
     bool    addClause_(      vec<Lit>& ps);                     // Add a clause to the solver without making superflous internal copy. Will
                                                                 // change the passed vector 'ps'.
 
+    // Add constraint which guarantees that at least one of the given
+    // variables will be true and no two value variables in the constraint
+    // are true at the same time.
+    //
+    // Attention: Value variables cannot be shared by two
+    // or more single value constraints.
+    //
+    // Usage (direct encoding of CSP variables):
+    // For each value of CSP variable introduce fresh propositional
+    // value variable indicating whether the variable has that value.
+    // Now you can use addSingleValueConstraint to ensure
+    // that exactly one of these propositional variables is true.
+    //
+    // To enforce this constraint with standard clauses you would need
+    // one clause which guarantees that at least one value is chosen
+    // and quadratic number of clauses which guarantee that at most one value
+    // is chosen. This constraint explicitly creates only
+    // "at least one" clause and remaining "at most one" clauses are implicit.
+    // If the implicit clause becomes the reason of assignment of x
+    // reason(x) points to explicit "at least one" clause and reason_svc(x)
+    // is the second variable from the implicit clause (if the reason of x
+    // is standard clause or explicit "at least one" clause then
+    // reason_svc(x) == var_Undef).
+    bool addSingleValueConstraint(const vec<Var>& vs);
+
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
+    bool    forceSimplify() { simpDB_props = 0; return simplify(); }
     bool    solve        (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions.
     lbool   solveLimited (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
     bool    solve        ();                        // Search without assumptions.
@@ -139,10 +170,16 @@ public:
 
 protected:
 
+    // TODO: Investigate if the fields reason and reason_svc in VarData
+    // can be merged. We can use the bit before sign to differentiate
+    // between CRef and Var.
+
     // Helper structures:
     //
-    struct VarData { CRef reason; int level; };
-    static inline VarData mkVarData(CRef cr, int l){ VarData d = {cr, l}; return d; }
+    struct VarData { CRef reason; Var reason_svc; int level; };
+    static inline VarData mkVarData(CRef cr, int l, Var var = var_Undef) {
+        VarData d = {cr, var, l}; return d;
+    }
 
     struct Watcher {
         CRef cref;
@@ -183,10 +220,19 @@ protected:
     VMap<lbool>         assigns;          // The current assignments.
     VMap<char>          polarity;         // The preferred polarity of each variable.
     VMap<lbool>         user_pol;         // The users preferred polarity of each variable.
+    VMap<char>          value_var;        // Declares if a variable is value variable.
     VMap<char>          decision;         // Declares if a variable is eligible for selection in the decision heuristic.
     VMap<VarData>       vardata;          // Stores reason and level for each variable.
     OccLists<Lit, vec<Watcher>, WatcherDeleted, MkIndexLit>
                         watches;          // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
+
+    // In which single value constraint is variable watched.
+    VMap<CRef> svc_watches;
+
+    // Must not be used as reason of assigned variable.
+    // Filled and returned by getAntecedent and propagate when reason
+    // or conflict is implicit clause of single value constraint.
+    CRef svc_implicit_clause;
 
     Heap<Var,VarOrderLt>order_heap;       // A priority queue of variables ordered with respect to the variable activity.
 
@@ -223,7 +269,13 @@ protected:
     void     insertVarOrder   (Var x);                                                 // Insert a variable in the decision order priority queue.
     Lit      pickBranchLit    ();                                                      // Return the next decision variable.
     void     newDecisionLevel ();                                                      // Begins a new decision level.
-    void     uncheckedEnqueue (Lit p, CRef from = CRef_Undef);                         // Enqueue a literal. Assumes value of literal is undefined.
+
+    // Enqueue a literal. Assumes value of literal is undefined.
+    void uncheckedEnqueue(
+        Lit p,
+        CRef from = CRef_Undef,
+        Var reason_svc = var_Undef);
+
     bool     enqueue          (Lit p, CRef from = CRef_Undef);                         // Test if fact 'p' contradicts current state, enqueue otherwise.
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
     void     cancelUntil      (int level);                                             // Backtrack until a certain level.
@@ -253,6 +305,11 @@ protected:
     bool     locked           (const Clause& c) const; // Returns TRUE if a clause is a reason for some implication in the current state.
     bool     satisfied        (const Clause& c) const; // Returns TRUE if a clause is satisfied in the current state.
 
+    // Attach single value constraint to watcher lists.
+    void attachSingleValueConstraint(CRef cr);
+    // Detach single value constraint from watcher lists.
+    void detachSingleValueConstraint(CRef cr, bool strict = false);
+
     // Misc:
     //
     int      decisionLevel    ()      const; // Gives the current decisionlevel.
@@ -261,6 +318,28 @@ protected:
     int      level            (Var x) const;
     bool     withinBudget     ()      const;
     void     relocAll         (ClauseAllocator& to);
+
+    // If reason_svc(x) != var_Undef then x was assigned false because
+    // value variable reason_svc(x) was assigned true in single value
+    // constraint reason(x) and so x was had to be assigned false.
+    Var reason_svc(Var x) const;
+
+    // Returns antecedent of p. Assumes that 0th literal
+    // of antecedent won't be accessed.
+    //
+    // If reason is implicit clause of single value constraint
+    // then it updates and returns svc_implicit_clause.
+    CRef getAntecedent(Lit p);
+
+#ifdef DEBUG
+
+    void checkWatches();
+    void checkClauseWatches(CRef cr);
+    void checkClauseIsWatched(CRef cr, vec<Watcher> & ws);
+
+    // TODO: checkReasons
+
+#endif
 
     // Static helpers:
     //
@@ -283,6 +362,18 @@ protected:
 
 inline CRef Solver::reason(Var x) const { return vardata[x].reason; }
 inline int  Solver::level (Var x) const { return vardata[x].level; }
+
+inline Var Solver::reason_svc(Var x) const { return vardata[x].reason_svc; }
+
+inline CRef Solver::getAntecedent(Lit p) {
+    if (reason_svc(var(p)) == var_Undef)
+        return reason(var(p));
+    else {
+        // 0th literal is p, but in algorithms it is not needed.
+        ca[svc_implicit_clause][1] = mkLit(reason_svc(var(p)), lsign_Neg);
+        return svc_implicit_clause;
+    }
+}
 
 inline void Solver::insertVarOrder(Var x) {
     if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }

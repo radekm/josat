@@ -1,6 +1,7 @@
 /***************************************************************************************[Solver.cc]
 Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
 Copyright (c) 2007-2010, Niklas Sorensson
+Copyright (c) 2013, Radek Micek
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
@@ -98,7 +99,12 @@ Solver::Solver() :
   , conflict_budget    (-1)
   , propagation_budget (-1)
   , asynch_interrupt   (false)
-{}
+{
+    vec<Lit> ps;
+    ps.push(lit_Undef);
+    ps.push(lit_Undef);
+    svc_implicit_clause = ca.alloc(ps, false);
+}
 
 
 Solver::~Solver()
@@ -113,7 +119,7 @@ Solver::~Solver()
 // Creates a new SAT variable in the solver. If 'decision' is cleared, variable will not be
 // used as a decision variable (NOTE! This has effects on the meaning of a SATISFIABLE result).
 //
-Var Solver::newVar(lbool upol, bool dvar)
+Var Solver::newVar(lbool upol, bool dvar, bool valueVar)
 {
     Var v = next_var++;
 
@@ -125,10 +131,112 @@ Var Solver::newVar(lbool upol, bool dvar)
     seen     .insert(v, 0);
     polarity .insert(v, true);
     user_pol .insert(v, upol);
+    value_var.insert(v, valueVar);
     decision .reserve(v);
     trail    .capacity(v+1);
     setDecisionVar(v, dvar);
+
+    svc_watches.insert(v, CRef_Undef);
+
     return v;
+}
+
+bool Solver::addSingleValueConstraint(const vec<Var>& vs) {
+    assert(decisionLevel() == 0);
+    if (!ok) return false;
+
+    add_tmp.clear();
+    for (int i = 0; i < vs.size(); i++)
+        add_tmp.push(mkLit(vs[i], lsign_Pos));
+
+    vec<Lit>& ps = add_tmp;
+
+    // Remove duplicate literals and false literals.
+    // Count true literals, value literals and true value literals.
+    sort(ps);
+    int ntrue_lits = 0;
+    int nval_lits = 0;
+    int ntrue_val_lits = 0;
+    int i, j;
+    Lit p;
+    for (i = 0, j = 0, p = lit_Undef; i < ps.size(); i++)
+        if (value(ps[i]) != l_False && ps[i] != p) {
+            ps[j++] = p = ps[i];
+
+            bool val = value_var[var(ps[i])];
+            bool sat = value(ps[i]) == l_True;
+
+            ntrue_lits += sat;
+            nval_lits += val;
+            ntrue_val_lits += sat && val;
+        }
+    ps.shrink(i - j);
+
+    // Conflict clause.
+    if (ntrue_val_lits > 1 || ps.size() == 0)
+        return ok = false;
+
+    // Satisfied clause. We don't need the clause
+    // since it is satisfied and no two value literals
+    // can be true at the same time.
+    if (ntrue_lits >= 1 && nval_lits <= 1)
+        return true;
+
+    // Unit clause.
+    if (ps.size() == 1) {
+        uncheckedEnqueue(ps[0]);
+        return ok = (propagate() == CRef_Undef);
+    }
+
+    // One value literal is true,
+    // other value literals must be false.
+    if (ntrue_val_lits == 1) {
+        for (i = 0; i < ps.size(); i++)
+            if (value(ps[i]) == l_Undef && value_var[var(ps[i])])
+                uncheckedEnqueue(~ps[i]);
+
+        return ok = (propagate() == CRef_Undef);
+    }
+
+    // Now the clause contains at least two literals.
+    // All value literals in the clause are unassigned.
+    // Non-value literals can be unassigned or can be assigned true.
+    // If some non-value literal is assigned true then the clause
+    // contains at least two value literals.
+
+    CRef cr = ca.alloc(ps, false, true);
+    clauses.push(cr);
+    attachSingleValueConstraint(cr);
+
+    return true;
+}
+
+void Solver::attachSingleValueConstraint(CRef cr) {
+    attachClause(cr);
+
+    const Clause& c = ca[cr];
+    assert(c.single_value_constraint());
+
+    // For each variable watch for true assignment.
+    for (int i = 0; i < c.size(); i++) {
+        Var v = var(c[i]);
+
+        // Variable is not watched.
+        assert(svc_watches[v] == CRef_Undef);
+
+        if (value_var[v])
+            svc_watches[v] = cr;
+    }
+}
+
+void Solver::detachSingleValueConstraint(CRef cr, bool strict) {
+    detachClause(cr);
+
+    const Clause& c = ca[cr];
+    assert(c.single_value_constraint());
+
+    for (int i = 0; i < c.size(); i++)
+        svc_watches[var(c[i])] = CRef_Undef;
 }
 
 bool Solver::addClause_(vec<Lit>& ps)
@@ -164,6 +272,22 @@ bool Solver::addClause_(vec<Lit>& ps)
 void Solver::attachClause(CRef cr){
     const Clause& c = ca[cr];
     assert(c.size() > 1);
+    assert(
+        // c[0] is always assigned l_Undef in ordinary clauses.
+        value(c[0]) == l_Undef ||
+        // Single value constraints may contain true non-value literals.
+        (c.single_value_constraint() &&
+            value(c[0]) == l_True &&
+            !value_var[var(c[0])]));
+    assert(
+        // c[1] is always assigned l_Undef in ordinary clauses added by user.
+        value(c[1]) == l_Undef ||
+        // c[1] is always assigned l_False in ordinary learned clauses.
+        value(c[1]) == l_False ||
+        // Single value constraints may contain true non-value literals.
+        (c.single_value_constraint() &&
+            value(c[1]) == l_True &&
+            !value_var[var(c[1])]));
     watches[~c[0]].push(Watcher(cr, c[1]));
     watches[~c[1]].push(Watcher(cr, c[0]));
     if (c.learnt()) num_learnts++, learnts_literals += c.size();
@@ -191,15 +315,36 @@ void Solver::detachClause(CRef cr, bool strict){
 
 void Solver::removeClause(CRef cr) {
     Clause& c = ca[cr];
-    detachClause(cr);
+
+    // Locked clause may be removed only when removing clauses satisfied
+    // on decision level 0.
+    assert(!locked(c) || level(var(c[0])) == 0);
+
     // Don't leave pointers to free'd memory!
     if (locked(c)) vardata[var(c[0])].reason = CRef_Undef;
-    c.mark(1); 
+
+    if (c.single_value_constraint()) {
+
+        // Find and remove pointers to implicit clauses.
+        for (int i = 0; i < c.size(); i++)
+            if (value(c[i]) == l_False && reason(var(c[i])) == cr)
+                vardata[var(c[i])].reason = CRef_Undef;
+
+        detachSingleValueConstraint(cr);
+    }
+    else {
+        detachClause(cr);
+    }
+
+    c.mark(1);
     ca.free(cr);
 }
 
 
 bool Solver::satisfied(const Clause& c) const {
+    // Assumes that propagation was done and no conflict was encountered,
+    // otherwise it may mark single value constraint as satisfied even
+    // if some implicit "at most one" clause is not satisfied.
     for (int i = 0; i < c.size(); i++)
         if (value(c[i]) == l_True)
             return true;
@@ -275,6 +420,7 @@ Lit Solver::pickBranchLit()
 |________________________________________________________________________________________________@*/
 void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 {
+    // Number of literals from current decision level in learnt clause.
     int pathC = 0;
     Lit p     = lit_Undef;
 
@@ -293,25 +439,39 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
             Lit q = c[j];
 
+            // False literals from decision level 0 will never become true
+            // so we can skip them.
+            //
+            // Attention: If the conflict clause contains only literals from
+            // decision level 0 then these will be skipped and seen will
+            // remain empty. This will cause problems when searching
+            // for literal p.
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));
+
+                // To avoid duplicate literals.
                 seen[var(q)] = 1;
+
                 if (level(var(q)) >= decisionLevel())
+                    // q will be resolved out - we don't even add it.
                     pathC++;
                 else
                     out_learnt.push(q);
             }
         }
-        
-        // Select next clause to look at:
+
+        // Select literal p which will be resolved out in the next iteration.
         while (!seen[var(trail[index--])]);
         p     = trail[index+1];
-        confl = reason(var(p));
+        confl = getAntecedent(p);
+
         seen[var(p)] = 0;
         pathC--;
 
     }while (pathC > 0);
     out_learnt[0] = ~p;
+
+    // Invariant: seen now contains exactly variables from out_learnt except p.
 
     // Simplify conflict clause:
     //
@@ -356,7 +516,7 @@ bool Solver::litRedundant(Lit p)
     assert(seen[var(p)] == seen_undef || seen[var(p)] == seen_source);
     assert(reason(var(p)) != CRef_Undef);
 
-    Clause*               c     = &ca[reason(var(p))];
+    Clause*               c     = &ca[getAntecedent(p)];
     vec<ShrinkStackElem>& stack = analyze_stack;
     stack.clear();
 
@@ -385,7 +545,7 @@ bool Solver::litRedundant(Lit p)
             stack.push(ShrinkStackElem(i, p));
             i  = 0;
             p  = l;
-            c  = &ca[reason(var(p))];
+            c  = &ca[getAntecedent(p)];
         }else{
             // Finished with current element 'p' and reason 'c':
             if (seen[var(p)] == seen_undef){
@@ -399,7 +559,7 @@ bool Solver::litRedundant(Lit p)
             // Continue with top element on stack:
             i  = stack.last().i;
             p  = stack.last().l;
-            c  = &ca[reason(var(p))];
+            c  = &ca[getAntecedent(p)];
 
             stack.pop();
         }
@@ -431,11 +591,12 @@ void Solver::analyzeFinal(Lit p, LSet& out_conflict)
     for (int i = trail.size()-1; i >= trail_lim[0]; i--){
         Var x = var(trail[i]);
         if (seen[x]){
+            // No antecedent and level > 0 imply that x is assumption.
             if (reason(x) == CRef_Undef){
                 assert(level(x) > 0);
                 out_conflict.insert(~trail[i]);
             }else{
-                Clause& c = ca[reason(x)];
+                Clause& c = ca[getAntecedent(trail[i])];
                 for (int j = 1; j < c.size(); j++)
                     if (level(var(c[j])) > 0)
                         seen[var(c[j])] = 1;
@@ -448,11 +609,11 @@ void Solver::analyzeFinal(Lit p, LSet& out_conflict)
 }
 
 
-void Solver::uncheckedEnqueue(Lit p, CRef from)
+void Solver::uncheckedEnqueue(Lit p, CRef from, Var reason_svc)
 {
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
-    vardata[var(p)] = mkVarData(from, decisionLevel());
+    vardata[var(p)] = mkVarData(from, decisionLevel(), reason_svc);
     trail.push_(p);
 }
 
@@ -475,9 +636,38 @@ CRef Solver::propagate()
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
+        num_props++;
+
+        // Value literal p is true - make other value literals
+        // from the same single value constraint false.
+        if (sign(p) == lsign_Pos && svc_watches[var(p)] != CRef_Undef) {
+            CRef cr = svc_watches[var(p)];
+            const Clause& c = ca[cr];
+
+            // All value literals except p must be false.
+            for (int i = 0; i < c.size(); i++) {
+
+                Lit q = c[i];
+
+                if (q == p || value(q) == l_False || !value_var[var(q)])
+                    continue;
+                else if (value(q) == l_Undef)
+                    uncheckedEnqueue(~q, cr, var(p));
+                else {
+                    assert(value(q) == l_True);
+                    confl = svc_implicit_clause;
+                    // Save conflict clause.
+                    ca[confl][0] = ~p;
+                    ca[confl][1] = ~q;
+                    // Empty propagation queue.
+                    qhead = trail.size();
+                    goto AfterPropagation;
+                }
+            }
+        }
+
         vec<Watcher>&  ws  = watches.lookup(p);
         Watcher        *i, *j, *end;
-        num_props++;
 
         for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
             // Try to avoid inspecting the clause:
@@ -522,6 +712,9 @@ CRef Solver::propagate()
         }
         ws.shrink(i - j);
     }
+
+AfterPropagation:;
+
     propagations += num_props;
     simpDB_props -= num_props;
 
@@ -563,18 +756,32 @@ void Solver::reduceDB()
 }
 
 
+// For decision level 0.
+// Assumes that propagation was done.
 void Solver::removeSatisfied(vec<CRef>& cs)
 {
+#ifdef DEBUG
+    checkWatches();
+#endif
+
     int i, j;
     for (i = j = 0; i < cs.size(); i++){
         Clause& c = ca[cs[i]];
+
         if (satisfied(c))
             removeClause(cs[i]);
+        // If the clause is a single value constraint and not satisfied
+        // then it is not used as a reason for any variable.
+        // The same holds for ordinary clauses.
         else{
             // Trim clause:
             assert(value(c[0]) == l_Undef && value(c[1]) == l_Undef);
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) == l_False){
+                    // Unwatch value literal.
+                    if (c.single_value_constraint()) {
+                        svc_watches[var(c[k])] = CRef_Undef;
+                    }
                     c[k--] = c[c.size()-1];
                     c.pop();
                 }
@@ -582,8 +789,11 @@ void Solver::removeSatisfied(vec<CRef>& cs)
         }
     }
     cs.shrink(i - j);
-}
 
+#ifdef DEBUG
+    checkWatches();
+#endif
+}
 
 void Solver::rebuildOrderHeap()
 {
@@ -617,8 +827,6 @@ bool Solver::simplify()
     removeSatisfied(learnts);
     if (remove_satisfied){       // Can be turned off.
         removeSatisfied(clauses);
-
-        // TODO: what todo in if 'remove_satisfied' is false?
     }
     checkGarbage();
     rebuildOrderHeap();
@@ -834,6 +1042,8 @@ void Solver::printStats() const
 
 void Solver::relocAll(ClauseAllocator& to)
 {
+    ca.reloc(svc_implicit_clause, to);
+
     // All watchers:
     //
     watches.cleanAll();
@@ -845,15 +1055,27 @@ void Solver::relocAll(ClauseAllocator& to)
                 ca.reloc(ws[j].cref, to);
         }
 
+    // Single value constraint watchers:
+    for (int v = 0; v < nVars(); v++)
+        if (svc_watches[v] != CRef_Undef) {
+            // Clause which isn't removed is watched
+            // and so it must be already relocated.
+            assert(ca[svc_watches[v]].reloced());
+            ca.reloc(svc_watches[v], to);
+        }
+
     // All reasons:
     //
     for (int i = 0; i < trail.size(); i++){
         Var v = var(trail[i]);
 
-        // Note: it is not safe to call 'locked()' on a relocated clause. This is why we keep
-        // 'dangling' reasons here. It is safe and does not hurt.
-        if (reason(v) != CRef_Undef && (ca[reason(v)].reloced() || locked(ca[reason(v)]))){
+        if (reason(v) != CRef_Undef) {
+            // Trail must not link removed reasons.
             assert(!isRemoved(reason(v)));
+            // Clause which isn't removed is watched
+            // and so it must be already relocated.
+            assert(ca[reason(v)].reloced());
+
             ca.reloc(vardata[v].reason, to);
         }
     }
@@ -863,6 +1085,10 @@ void Solver::relocAll(ClauseAllocator& to)
     int i, j;
     for (i = j = 0; i < learnts.size(); i++)
         if (!isRemoved(learnts[i])){
+            // Clause which isn't removed is watched
+            // and so it must be already relocated.
+            assert(ca[learnts[i]].reloced());
+
             ca.reloc(learnts[i], to);
             learnts[j++] = learnts[i];
         }
@@ -872,6 +1098,10 @@ void Solver::relocAll(ClauseAllocator& to)
     //
     for (i = j = 0; i < clauses.size(); i++)
         if (!isRemoved(clauses[i])){
+            // Clause which isn't removed is watched
+            // and so it must be already relocated.
+            assert(ca[clauses[i]].reloced());
+
             ca.reloc(clauses[i], to);
             clauses[j++] = clauses[i];
         }
@@ -881,6 +1111,10 @@ void Solver::relocAll(ClauseAllocator& to)
 
 void Solver::garbageCollect()
 {
+#ifdef DEBUG
+    checkWatches();
+#endif
+
     // Initialize the next region to a size corresponding to the estimated utilization degree. This
     // is not precise but should avoid some unnecessary reallocations for the new region:
     ClauseAllocator to(ca.size() - ca.wasted()); 
@@ -890,4 +1124,96 @@ void Solver::garbageCollect()
         printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n", 
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
+
+#ifdef DEBUG
+    checkWatches();
+#endif
 }
+
+#ifdef DEBUG
+
+void Solver::checkWatches() {
+    // Assert that each watched literal is the first literal
+    // or the second literal in the clause.
+    for (int i = 0; i < 2 * next_var; i++) {
+        Lit p = toLit(i);
+        vec<Watcher> & ws = watches[p];
+
+        for (Watcher * w = (Watcher*)ws, * end = w + ws.size(); w != end; w++) {
+            CRef cr = w->cref;
+            Clause & c = ca[cr];
+
+            assert(c.size() >= 2);
+            assert(c.mark() || c[0] == ~p || c[1] == ~p);
+        }
+    }
+
+    // Assert that each watched value variable really occurs
+    // in the single value constraint.
+    for (Var v = 0; v < next_var; v++) {
+        CRef cr = svc_watches[v];
+
+        if (cr == CRef_Undef)
+            continue;
+
+        assert(value_var[v]);
+
+        Clause & c = ca[cr];
+
+        assert(c.single_value_constraint());
+        assert(!c.mark());
+
+        bool found = false;
+        for (int i = 0; i < c.size(); i++) {
+            if (c[i] == mkLit(v, false)) {
+                found = true;
+                break;
+            }
+        }
+
+        assert(found);
+    }
+
+    // Assert that the first two literals of each clause are watched.
+    // Assert that all value literals of each single value constraint
+    // are watched.
+
+    for (int i = 0; i < clauses.size(); i++) {
+        checkClauseWatches(clauses[i]);
+    }
+
+    for (int i = 0; i < learnts.size(); i++) {
+        checkClauseWatches(learnts[i]);
+    }
+}
+
+void Solver::checkClauseWatches(CRef cr) {
+    assert(cr != CRef_Undef);
+
+    Clause & c = ca[cr];
+
+    assert(c.size() >= 2);
+    assert(!c.mark());
+
+    checkClauseIsWatched(cr, watches[~c[0]]);
+    checkClauseIsWatched(cr, watches[~c[1]]);
+
+    if (c.single_value_constraint()) {
+        for (int i = 0; i < c.size(); i++) {
+            Var v = var(c[i]);
+
+            if (value_var[v])
+                assert(svc_watches[v] == cr);
+        }
+    }
+}
+
+void Solver::checkClauseIsWatched(CRef cr, vec<Watcher> & ws) {
+    for (Watcher * w = (Watcher*)ws, * end = w + ws.size(); w != end; w++) {
+        if (w->cref == cr)
+            return;
+    }
+    assert(false);
+}
+
+#endif
