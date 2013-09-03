@@ -91,7 +91,6 @@ public:
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
-    bool    forceSimplify() { simpDB_props = 0; return simplify(); }
     bool    solve        (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions.
     lbool   solveLimited (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
     bool    solve        ();                        // Search without assumptions.
