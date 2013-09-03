@@ -341,15 +341,38 @@ void Solver::removeClause(CRef cr) {
 }
 
 
+// Ordinary clause is satisfied iff it contains true literal.
+//
+// Single value constraint is satisfied iff
+// it contains true literal and no two its value literals can be true.
 bool Solver::satisfied(const Clause& c) const {
+    assert(decisionLevel() == 0);
+
     // Assumes that propagation was done and no conflict was encountered,
     // otherwise it may mark single value constraint as satisfied even
     // if some implicit "at most one" clause is not satisfied.
-    for (int i = 0; i < c.size(); i++)
-        if (value(c[i]) == l_True)
-            return true;
-    return false; }
 
+    if (c.single_value_constraint()) {
+        bool true_lit_found = false;
+        int nundef_value_lits = 0;
+        for (int i = 0; i < c.size(); i++) {
+            bool val = value_var[var(c[i])];
+            if (value(c[i]) == l_True)
+                if (val) return true;
+                else true_lit_found = true;
+            else if (value(c[i]) == l_Undef && val)
+                nundef_value_lits++;
+        }
+        // Now the constraint doesn't contain any true value literals.
+        return (true_lit_found && nundef_value_lits <= 1);
+    }
+    else {
+        for (int i = 0; i < c.size(); i++)
+            if (value(c[i]) == l_True)
+                return true;
+        return false;
+    }
+}
 
 // Revert to the state at given level (keeping all assignment at 'level' but not beyond).
 //
