@@ -818,6 +818,41 @@ void Solver::removeSatisfied(vec<CRef>& cs)
 #endif
 }
 
+void Solver::removeClausesWithLit(Lit p) {
+    removeClausesWithLitHelper(p, clauses);
+    removeClausesWithLitHelper(p, learnts);
+
+    checkGarbage();
+}
+
+void Solver::removeClausesWithLitHelper(Lit p, vec<CRef> & cs) {
+#ifdef DEBUG
+    checkWatches();
+#endif
+
+    int i, j;
+    for (i = j = 0; i < cs.size(); i++){
+        Clause & c = ca[cs[i]];
+
+        bool found = false;
+        for (int k = 0; k < c.size(); k++)
+            if (c[k] == p) {
+                found = true;
+                break;
+            }
+
+        if (found)
+            removeClause(cs[i]);
+        else
+            cs[j++] = cs[i];
+    }
+    cs.shrink(i - j);
+
+#ifdef DEBUG
+    checkWatches();
+#endif
+}
+
 void Solver::rebuildOrderHeap()
 {
     vec<Var> vs;

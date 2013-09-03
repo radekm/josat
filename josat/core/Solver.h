@@ -85,6 +85,9 @@ public:
     // reason_svc(x) == var_Undef).
     bool addSingleValueConstraint(const vec<Var>& vs);
 
+    // Removes clauses which contain the literal p.
+    void removeClausesWithLit(Lit p);
+
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
@@ -287,6 +290,7 @@ protected:
     void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
     void     removeSatisfied  (vec<CRef>& cs);                                         // Shrink 'cs' to contain only non-satisfied clauses.
     void     rebuildOrderHeap ();
+    void     removeClausesWithLitHelper(Lit p, vec<CRef> & cs);                        // Removes clauses from cs which contain the literal p.
 
     // Maintaining Variable/Clause activity:
     //
