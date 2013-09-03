@@ -796,15 +796,27 @@ void Solver::removeSatisfied(vec<CRef>& cs)
         // If the clause is a single value constraint and not satisfied
         // then it is not used as a reason for any variable.
         // The same holds for ordinary clauses.
+        else if (c.single_value_constraint()) {
+            assert(
+                // Unsatisfied single value constraint may contain true
+                // non-value literal.
+                (value(c[0]) == l_True && !value_var[var(c[0])]) ||
+                (value(c[1]) == l_True && !value_var[var(c[1])]) ||
+                (value(c[0]) == l_Undef && value(c[1]) == l_Undef));
+            for (int k = 0; k < c.size(); k++)
+                if (value(c[k]) == l_False) {
+                    // Unwatch value literal.
+                    svc_watches[var(c[k])] = CRef_Undef;
+                    c[k--] = c[c.size()-1];
+                    c.pop();
+                }
+            cs[j++] = cs[i];
+        }
         else{
             // Trim clause:
             assert(value(c[0]) == l_Undef && value(c[1]) == l_Undef);
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) == l_False){
-                    // Unwatch value literal.
-                    if (c.single_value_constraint()) {
-                        svc_watches[var(c[k])] = CRef_Undef;
-                    }
                     c[k--] = c[c.size()-1];
                     c.pop();
                 }
